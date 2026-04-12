@@ -1,0 +1,79 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Member {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  joinDate  DateTime @default(now())
+  status    String
+  attendances Attendance[]
+  subscriptions Subscription[]
+  payments Payment[]
+
+}
+model Plan {
+  id             String  @id @default(uuid())
+  planName       String
+  price          String
+  durationMonths Int
+
+  subscriptions  Subscription[]
+}
+model Subscription {
+  id        String   @id @default(uuid())
+
+  memberId  String
+  planId    String
+
+  startDate DateTime
+  endDate   DateTime
+  status    String
+
+  member    Member   @relation(fields: [memberId], references: [id])
+  plan      Plan     @relation(fields: [planId], references: [id])
+}
+model Trainer {
+  id             String  @id @default(uuid())
+  trainerName    String
+  specialization String
+  classCount     Int     @default(0)
+}
+model Class {
+  id          String @id @default(uuid())
+  className   String
+  schedule    String
+  capacity    Int
+  attendances Attendance[]
+}
+model Attendance {
+  id        String   @id @default(uuid())
+
+  memberId  String
+  classId   String
+
+  date      DateTime
+  status    String
+
+  member    Member   @relation(fields: [memberId], references: [id])
+  class     Class    @relation(fields: [classId], references: [id])
+}
+model Payment {
+  id        String   @id @default(uuid())
+
+  memberId  String
+  amount    Float
+  method    String
+  status    String
+  date      DateTime
+
+  member    Member   @relation(fields: [memberId], references: [id])
+}

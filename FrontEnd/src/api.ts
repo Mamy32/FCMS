@@ -1,0 +1,1 @@
+export const API_URL = "https://fcms-backend-921440150163.asia-southeast1.run.app";
