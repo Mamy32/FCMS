@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -7,12 +6,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 
 interface Column<T> {
   key: string;
   header: string;
-  render?: (item: T, index: number) => React.ReactNode;
+  render?: (item: T, index: number) => React.ReactNode; // ✅ FIXED
 }
 
 interface DataTableProps<T> {
@@ -26,81 +24,45 @@ function DataTable<T extends Record<string, any>>({
   data,
   onRowClick,
 }: DataTableProps<T>) {
-  // 🔥 PAGINATION
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
-
-  // 🔥 SORTING
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-
-  // ✅ SORT DATA
-  const sortedData = [...data].sort((a, b) => {
-    if (!sortKey) return 0;
-
-    const valA = a[sortKey];
-    const valB = b[sortKey];
-
-    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
-    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
-
-    return 0;
-  });
-
-  // ✅ PAGINATION LOGIC
-  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
-  const start = (currentPage - 1) * itemsPerPage;
-  const paginatedData = sortedData.slice(start, start + itemsPerPage);
-
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
       <Table>
-        {/* 🔥 HEADER (CLICK TO SORT) */}
         <TableHeader>
           <TableRow className="bg-muted/50">
             {columns.map((col) => (
               <TableHead
                 key={col.key}
-                className="font-semibold text-foreground cursor-pointer"
-                onClick={() => {
-                  if (sortKey === col.key) {
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                  } else {
-                    setSortKey(col.key);
-                    setSortOrder("asc");
-                  }
-                }}
+                className="font-semibold text-foreground"
               >
                 {col.header}
-                {sortKey === col.key && (
-                  <span className="ml-1">
-                    {sortOrder === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
               </TableHead>
             ))}
           </TableRow>
         </TableHeader>
 
-        {/* 🔥 BODY */}
         <TableBody>
-          {paginatedData.length === 0 ? (
+          {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="text-center py-8 text-muted-foreground">
+              <TableCell
+                colSpan={columns.length}
+                className="text-center py-8 text-muted-foreground"
+              >
                 No records found
               </TableCell>
             </TableRow>
           ) : (
-            paginatedData.map((item, idx) => (
+            data.map((item, idx) => (
               <TableRow
                 key={idx}
-                className={onRowClick ? "cursor-pointer hover:bg-muted/30" : ""}
+                className={
+                  onRowClick ? "cursor-pointer hover:bg-muted/30" : ""
+                }
                 onClick={() => onRowClick?.(item)}
               >
                 {columns.map((col) => (
                   <TableCell key={col.key}>
                     {col.render
-                      ? col.render(item, start + idx) // ✅ keeps correct global index
+                      ? col.render(item, idx) // ✅ PASS INDEX HERE
                       : item[col.key]}
                   </TableCell>
                 ))}
@@ -109,29 +71,6 @@ function DataTable<T extends Record<string, any>>({
           )}
         </TableBody>
       </Table>
-
-      {/* 🔥 PAGINATION UI */}
-      <div className="flex justify-between items-center p-4">
-        <Button
-          variant="outline"
-          disabled={currentPage === 1}
-          onClick={() => setCurrentPage((p) => p - 1)}
-        >
-          Previous
-        </Button>
-
-        <span className="text-sm">
-          Page {currentPage} of {totalPages || 1}
-        </span>
-
-        <Button
-          variant="outline"
-          disabled={currentPage === totalPages || totalPages === 0}
-          onClick={() => setCurrentPage((p) => p + 1)}
-        >
-          Next
-        </Button>
-      </div>
     </div>
   );
 }

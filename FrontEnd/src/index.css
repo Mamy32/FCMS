@@ -1,38 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 25% 10%;
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 25% 10%;
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 10%;
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
 
-    --primary: 152 69% 41%;
-    --primary-foreground: 0 0% 100%;
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
 
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 220 25% 10%;
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
 
-    --muted: 220 15% 92%;
-    --muted-foreground: 220 10% 46%;
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
 
-    --accent: 262 60% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
 
-    --destructive: 0 84% 60%;
+    --destructive: oklch(0.577 0.245 27.325);
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 90%;
-    --input: 220 15% 90%;
-    --ring: 152 69% 41%;
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
 
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
     --sidebar-bg: 220 25% 12%;
     --sidebar-fg: 220 10% 75%;
@@ -50,13 +54,65 @@
     --info-foreground: 0 0% 100%;
 
     --sidebar-background: 220 25% 12%;
-    --sidebar-foreground: 220 10% 75%;
-    --sidebar-primary: 152 69% 41%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 18%;
-    --sidebar-accent-foreground: 220 10% 85%;
-    --sidebar-border: 220 20% 20%;
-    --sidebar-ring: 152 69% 41%;
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.985 0 0);
+  }
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+  }
+  .dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
