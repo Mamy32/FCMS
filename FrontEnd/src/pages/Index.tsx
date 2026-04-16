@@ -134,7 +134,7 @@ const Dashboard = () => {
       ),
     },
   ];
-// 🔥 REUSE THIS FOR OTHER PAGES
+//
   return (
     <div>
       {/* HEADER */}
