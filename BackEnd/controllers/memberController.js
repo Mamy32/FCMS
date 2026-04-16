@@ -1,18 +1,26 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// GET MEMBERS
 exports.getMembers = async (req, res) => {
-  const members = await prisma.member.findMany();
-  res.json(members);
+  try {
+    const members = await prisma.member.findMany();
+    res.json(members);
+  } catch (error) {
+    console.error("ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
 };
 
-// CREATE MEMBER
 exports.createMember = async (req, res) => {
-  const member = await prisma.member.create({
-    data: req.body,
-  });
-  res.json(member);
+  try {
+    const member = await prisma.member.create({
+      data: req.body,
+    });
+    res.json(member);
+  } catch (error) {
+    console.error("ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
 };
 // UPDATE
 exports.updateMember = async (req, res) => {
