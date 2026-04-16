@@ -51,27 +51,36 @@ const Members = () => {
   );
 
   // ✅ ADD
-  const handleAdd = async () => {
-    try {
-      setLoading(true);
+const handleAdd = async () => {
+  try {
+    setLoading(true);
 
-      const res = await fetch(`${API_URL}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, status: "Active" }),
-      });
+    const res = await fetch(`${API_URL}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, status: "Active" }),
+    });
 
-      const newMember = await res.json();
-      setMembers((prev) => [...prev, newMember]);
-
-      resetForm();
-      toast.success("Member added 🎉");
-    } catch {
-      toast.error("Failed to add member");
-    } finally {
-      setLoading(false);
+    // 👇 CHECK RESPONSE
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Backend error:", errorText);
+      throw new Error("Failed request");
     }
-  };
+
+    const newMember = await res.json();
+
+    setMembers((prev) => [...prev, newMember]);
+    resetForm();
+
+    toast.success("Member added 🎉");
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to add member");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ✅ EDIT
   const handleEdit = (member: Member) => {
