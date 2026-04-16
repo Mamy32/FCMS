@@ -15,6 +15,7 @@ exports.createMember = async (req, res) => {
   try {
     const member = await prisma.member.create({
       data: req.body,
+      status: "Active",
     });
     res.json(member);
   } catch (error) {

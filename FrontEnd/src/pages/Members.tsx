@@ -16,7 +16,7 @@ interface Member {
   phone: string;
   email: string;
   joinDate: string;
-  status: string;
+  status: "Active";
 }
 
 const Members = () => {
