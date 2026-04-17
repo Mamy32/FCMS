@@ -13,21 +13,25 @@ exports.getMembers = async (req, res) => {
 
 exports.createMember = async (req, res) => {
   try {
-    console.log("BODY:", req.body); // 👈 ADD THIS
+    console.log("BODY:", req.body);
+
+    if (!req.body.firstName || !req.body.lastName || !req.body.email) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     const member = await prisma.member.create({
       data: {
         firstName: req.body.firstName,
         lastName: req.body.lastName,
         email: req.body.email,
-        phone: req.body.phone,
+        phone: req.body.phone || null,
         status: "Active",
       },
     });
 
     res.json(member);
   } catch (error) {
-    console.error("ERROR:", error); // 👈 ADD THIS
+    console.error("ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 };

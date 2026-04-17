@@ -55,33 +55,51 @@ const handleAdd = async () => {
   try {
     setLoading(true);
 
-    const res = await fetch(`${API_URL}/members`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, status: "Active" }),
-    });
-
-    // 👇 CHECK RESPONSE
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("Backend error:", errorText);
-      throw new Error("Failed request");
+    // ✅ VALIDATION FIRST
+    if (!form.firstName || !form.lastName || !form.email) {
+      toast.error("Missing required fields");
+      return;
     }
 
-    const newMember = await res.json();
+    const payload = {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      phone: form.phone || null,
+      status: "Active",
+    };
+
+    console.log("SENDING:", payload); // 🔥 DEBUG
+
+    const res = await fetch(`${API_URL}/members`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text(); // 🔥 IMPORTANT
+
+    console.log("RESPONSE RAW:", text);
+
+    if (!res.ok) {
+      throw new Error(text);
+    }
+
+    const newMember = JSON.parse(text);
 
     setMembers((prev) => [...prev, newMember]);
     resetForm();
 
     toast.success("Member added 🎉");
-  } catch (err) {
-    console.error(err);
-    toast.error("Failed to add member");
+  } catch (err: any) {
+    console.error("ERROR:", err.message);
+    toast.error("Failed: " + err.message);
   } finally {
     setLoading(false);
   }
 };
-
   // ✅ EDIT
   const handleEdit = (member: Member) => {
     setEditing(member);
