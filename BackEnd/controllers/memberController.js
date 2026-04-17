@@ -13,13 +13,21 @@ exports.getMembers = async (req, res) => {
 
 exports.createMember = async (req, res) => {
   try {
+    console.log("BODY:", req.body); // 👈 ADD THIS
+
     const member = await prisma.member.create({
-      data: req.body,
-      status: "Active",
+      data: {
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        phone: req.body.phone,
+        status: "Active",
+      },
     });
+
     res.json(member);
   } catch (error) {
-    console.error("ERROR:", error);
+    console.error("ERROR:", error); // 👈 ADD THIS
     res.status(500).json({ error: error.message });
   }
 };
