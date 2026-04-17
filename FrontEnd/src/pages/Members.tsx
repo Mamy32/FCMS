@@ -37,11 +37,28 @@ const Members = () => {
   });
 
   // ✅ FETCH
-  useEffect(() => {
-    fetch(`${API_URL}/members`)
-      .then((res) => res.json())
-      .then(setMembers);
-  }, []);
+useEffect(() => {
+  const fetchMembers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/members`);
+      const text = await res.text();
+
+      console.log("GET RAW:", text);
+
+      if (!res.ok) {
+        throw new Error(text);
+      }
+
+      const data = JSON.parse(text);
+      setMembers(data);
+    } catch (err: any) {
+      console.error("GET ERROR:", err.message);
+      toast.error("Failed to load members: " + err.message);
+    }
+  };
+
+  fetchMembers();
+}, []);
 
   // 🔍 FILTER
   const filteredMembers = members.filter((m) =>
@@ -126,7 +143,12 @@ const handleAdd = async () => {
         }
       );
 
-      const updated = await res.json();
+      const text = await res.text();
+console.log("UPDATE RAW:", text);
+
+if (!res.ok) throw new Error(text);
+
+const updated = JSON.parse(text);
 
       setMembers((prev) =>
         prev.map((m) => (m.id === updated.id ? updated : m))
@@ -145,9 +167,14 @@ const handleAdd = async () => {
   const confirmDelete = async () => {
     if (!deleteId) return;
 
-    await fetch(`${API_URL}/members/${deleteId}`, {
-      method: "DELETE",
-    });
+const res = await fetch(`${API_URL}/members/${deleteId}`, {
+  method: "DELETE",
+});
+
+const text = await res.text();
+console.log("DELETE RAW:", text);
+
+if (!res.ok) throw new Error(text);
 
     setMembers((prev) => prev.filter((m) => m.id !== deleteId));
     setDeleteId(null);
