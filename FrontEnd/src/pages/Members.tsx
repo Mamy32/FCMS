@@ -1,344 +1,296 @@
-import { useState, useEffect } from "react";
+import { useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Download, Pencil, Search, Trash2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
-import { Badge } from "@/components/ui/badge";
+import StatusBadge from "@/components/StatusBadge";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import FormField from "@/components/FormField";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { formatDate } from "@/lib/format";
-import { API_URL } from "@/api";
-interface Member {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email: string;
-  joinDate: string;
-  status: "Active";
-}
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/api";
+import { useAuth } from "@/context/AuthContext";
+import { useApiMutation, useList } from "@/hooks/useApi";
+import { downloadCsv } from "@/lib/csv";
+import { daysUntil, formatDate, formatDateTime, formatIDR, fullName } from "@/lib/format";
+import type { CheckIn, Member, Payment, Subscription } from "@/types";
 
-const Members = () => {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Member | null>(null);
+const emptyForm = { firstName: "", lastName: "", email: "", phone: "", status: "Active" as Member["status"] };
 
-  // 🔥 PRO STATES
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+const membershipLabel = (m: Member) => {
+  const sub = m.activeSubscription;
+  if (!sub) return { status: "No plan", label: "No active plan" };
+  const days = daysUntil(sub.endDate);
+  if (days <= 7) return { status: "Expiring soon", label: `${sub.plan.planName} · ${days}d left` };
+  return { status: "Active", label: `${sub.plan.planName} · until ${formatDate(sub.endDate)}` };
+};
 
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    email: "",
+type MemberDetail = Member & {
+  subscriptions: Omit<Subscription, "member">[];
+  payments: Payment[];
+  checkIns: CheckIn[];
+};
+
+const MemberProfile = ({ id, onClose }: { id: string | null; onClose: () => void }) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["/members", id],
+    queryFn: () => api<MemberDetail>(`/members/${id}`),
+    enabled: !!id,
   });
 
-  // ✅ FETCH
-useEffect(() => {
-  const fetchMembers = async () => {
-    try {
-      const res = await fetch(`${API_URL}/members`);
-      const text = await res.text();
+  return (
+    <Sheet open={!!id} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+        <SheetHeader>
+          <SheetTitle>{data ? fullName(data) : "Member"}</SheetTitle>
+        </SheetHeader>
+        {isLoading || !data ? (
+          <div className="mt-6 space-y-3">
+            <Skeleton className="h-20" />
+            <Skeleton className="h-40" />
+          </div>
+        ) : (
+          <div className="mt-6 space-y-6 text-sm">
+            <div className="grid grid-cols-2 gap-3 rounded-lg border p-4">
+              <div><p className="text-muted-foreground">Email</p><p className="break-all">{data.email}</p></div>
+              <div><p className="text-muted-foreground">Phone</p><p>{data.phone || "-"}</p></div>
+              <div><p className="text-muted-foreground">Joined</p><p>{formatDate(data.joinDate)}</p></div>
+              <div><p className="text-muted-foreground">Status</p><StatusBadge status={data.status} /></div>
+            </div>
 
-      console.log("GET RAW:", text);
+            <section>
+              <h3 className="mb-2 font-semibold">Memberships</h3>
+              {data.subscriptions.length === 0 && <p className="text-muted-foreground">No memberships yet.</p>}
+              <div className="space-y-2">
+                {data.subscriptions.map((s) => {
+                  const expired = new Date(s.endDate) < new Date();
+                  return (
+                    <div key={s.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="font-medium">{s.plan.planName}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(s.startDate)} – {formatDate(s.endDate)}</p>
+                      </div>
+                      <StatusBadge status={s.status === "Cancelled" ? "Cancelled" : expired ? "Expired" : "Active"} />
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
 
-      if (!res.ok) {
-        throw new Error(text);
-      }
+            <section>
+              <h3 className="mb-2 font-semibold">Payments</h3>
+              {data.payments.length === 0 && <p className="text-muted-foreground">No payments yet.</p>}
+              <div className="divide-y rounded-lg border">
+                {data.payments.map((p) => (
+                  <div key={p.id} className="flex justify-between p-3">
+                    <span>{formatDate(p.date)} · {p.method}</span>
+                    <span className="font-medium">{formatIDR(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
 
-      const data = JSON.parse(text);
-      setMembers(data);
-    } catch (err: any) {
-      console.error("GET ERROR:", err.message);
-      toast.error("Failed to load members: " + err.message);
-    }
-  };
-
-  fetchMembers();
-}, []);
-
-  // 🔍 FILTER
-  const filteredMembers = members.filter((m) =>
-    `${m.firstName} ${m.lastName} ${m.email}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
+            <section>
+              <h3 className="mb-2 font-semibold">Recent visits</h3>
+              {data.checkIns.length === 0 && <p className="text-muted-foreground">No visits yet.</p>}
+              <div className="flex flex-wrap gap-2">
+                {data.checkIns.map((c) => (
+                  <span key={c.id} className="rounded-md bg-muted px-2 py-1 text-xs">{formatDateTime(c.checkedAt)}</span>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   );
-
-  // ✅ ADD
-const handleAdd = async () => {
-  try {
-    setLoading(true);
-
-    // ✅ VALIDATION FIRST
-    if (!form.firstName || !form.lastName || !form.email) {
-      toast.error("Missing required fields");
-      return;
-    }
-
-    const payload = {
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone || null,
-      status: "Active",
-    };
-
-    console.log("SENDING:", payload); // 🔥 DEBUG
-
-    const res = await fetch(`${API_URL}/members`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const text = await res.text(); // 🔥 IMPORTANT
-
-    console.log("RESPONSE RAW:", text);
-
-    if (!res.ok) {
-      throw new Error(text);
-    }
-
-    const newMember = JSON.parse(text);
-
-    setMembers((prev) => [...prev, newMember]);
-    resetForm();
-
-    toast.success("Member added 🎉");
-  } catch (err: any) {
-    console.error("ERROR:", err.message);
-    toast.error("Failed: " + err.message);
-  } finally {
-    setLoading(false);
-  }
 };
-  // ✅ EDIT
-  const handleEdit = (member: Member) => {
+
+const Members = () => {
+  const { isAdmin } = useAuth();
+  const { data: members = [], isLoading, error } = useList<Member>("/members");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Member | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
+
+  const save = useApiMutation(
+    (body: typeof form) =>
+      editing ? { path: `/members/${editing.id}`, method: "PUT", body } : { path: "/members", method: "POST", body },
+    { invalidate: ["/members"], success: editing ? "Member updated" : "Member added" }
+  );
+  const remove = useApiMutation((id: string) => ({ path: `/members/${id}`, method: "DELETE" }), {
+    invalidate: ["/members", "/subscriptions", "/payments", "/attendance"],
+    success: "Member deleted",
+  });
+
+  const filtered = members.filter((m) => {
+    const text = `${fullName(m)} ${m.email} ${m.phone || ""}`.toLowerCase();
+    if (!text.includes(search.toLowerCase())) return false;
+    if (filter === "active") return !!m.activeSubscription;
+    if (filter === "expiring") return !!m.activeSubscription && daysUntil(m.activeSubscription.endDate) <= 7;
+    if (filter === "none") return !m.activeSubscription;
+    return true;
+  });
+
+  const openForm = (member: Member | null) => {
     setEditing(member);
-    setForm({
-      firstName: member.firstName,
-      lastName: member.lastName,
-      phone: member.phone,
-      email: member.email,
-    });
+    setForm(
+      member
+        ? { firstName: member.firstName, lastName: member.lastName, email: member.email, phone: member.phone || "", status: member.status }
+        : emptyForm
+    );
     setDialogOpen(true);
   };
 
-  // ✅ UPDATE
-  const handleUpdate = async () => {
-    try {
-      setLoading(true);
-
-      const res = await fetch(
-        `${API_URL}/members/${editing?.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        }
-      );
-
-      const text = await res.text();
-console.log("UPDATE RAW:", text);
-
-if (!res.ok) throw new Error(text);
-
-const updated = JSON.parse(text);
-
-      setMembers((prev) =>
-        prev.map((m) => (m.id === updated.id ? updated : m))
-      );
-
-      resetForm();
-      toast.success("Updated ✏️");
-    } catch {
-      toast.error("Update failed");
-    } finally {
-      setLoading(false);
-    }
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    save.mutate(form, { onSuccess: () => setDialogOpen(false) });
   };
 
-  // 🗑️ CONFIRM DELETE
-  const confirmDelete = async () => {
-    if (!deleteId) return;
-
-const res = await fetch(`${API_URL}/members/${deleteId}`, {
-  method: "DELETE",
-});
-
-const text = await res.text();
-console.log("DELETE RAW:", text);
-
-if (!res.ok) throw new Error(text);
-
-    setMembers((prev) => prev.filter((m) => m.id !== deleteId));
-    setDeleteId(null);
-
-    toast.success("Deleted 🗑️");
-  };
-
-  const resetForm = () => {
-    setForm({
-      firstName: "",
-      lastName: "",
-      phone: "",
-      email: "",
-    });
-    setEditing(null);
-    setDialogOpen(false);
-  };
-
-  const columns = [
-    {
-      key: "index",
-      header: "ID",
-      render: (_: any, index: number) => index + 1,
-    },
-    { key: "firstName", header: "First Name" },
-    { key: "lastName", header: "Last Name" },
-    { key: "phone", header: "Phone" },
-    { key: "email", header: "Email" },
-
-    {
-      key: "joinDate",
-      header: "Join Date",
-      render: (item: Member) => formatDate(item.joinDate),
-    },
-
-    {
-      key: "status",
-      header: "Status",
-      render: (item: Member) => (
-        <Badge variant={item.status === "Active" ? "default" : "secondary"}>
-          {item.status}
-        </Badge>
-      ),
-    },
-
-    {
-      key: "actions",
-      header: "Actions",
-      render: (item: Member) => (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => handleEdit(item)}>
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => setDeleteId(item.id)}
-          >
-            Delete
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  const exportCsv = () =>
+    downloadCsv(
+      "members.csv",
+      filtered.map((m) => ({
+        "First name": m.firstName,
+        "Last name": m.lastName,
+        Email: m.email,
+        Phone: m.phone || "",
+        Joined: formatDate(m.joinDate),
+        Status: m.status,
+        Plan: m.activeSubscription?.plan.planName || "",
+        "Valid until": m.activeSubscription ? formatDate(m.activeSubscription.endDate) : "",
+      }))
+    );
 
   return (
     <div>
-      <PageHeader
-        title="Members"
-        description="Manage gym members"
-        actionLabel="Add Member"
-        onAction={() => {
-          setEditing(null);
-          setDialogOpen(true);
-        }}
+      <PageHeader title="Members" description="Everyone registered at your gym" actionLabel="Add member" onAction={() => openForm(null)}>
+        <Button variant="outline" className="h-9 gap-2 px-4" onClick={exportCsv} disabled={!filtered.length}>
+          <Download className="h-4 w-4" /> Export
+        </Button>
+      </PageHeader>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search by name, email or phone..." className="h-10 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="h-10 sm:w-52"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All members</SelectItem>
+            <SelectItem value="active">With active plan</SelectItem>
+            <SelectItem value="expiring">Expiring in 7 days</SelectItem>
+            <SelectItem value="none">No active plan</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <DataTable
+        loading={isLoading}
+        error={error}
+        data={filtered}
+        onRowClick={(m) => setProfileId(m.id)}
+        emptyMessage={members.length ? "No members match your filters" : "No members yet — add your first member"}
+        columns={[
+          {
+            key: "name",
+            header: "Member",
+            render: (m: Member) => (
+              <div>
+                <p className="font-medium">{fullName(m)}</p>
+                <p className="text-xs text-muted-foreground">{m.email}</p>
+              </div>
+            ),
+          },
+          { key: "phone", header: "Phone", render: (m: Member) => m.phone || "-" },
+          { key: "joinDate", header: "Joined", render: (m: Member) => formatDate(m.joinDate) },
+          {
+            key: "membership",
+            header: "Membership",
+            render: (m: Member) => {
+              const { status, label } = membershipLabel(m);
+              return <StatusBadge status={status} label={label} />;
+            },
+          },
+          { key: "status", header: "Account", render: (m: Member) => <StatusBadge status={m.status} /> },
+          {
+            key: "actions",
+            header: "",
+            className: "text-right",
+            render: (m: Member) => (
+              <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <Button size="icon-sm" variant="ghost" onClick={() => openForm(m)} aria-label="Edit">
+                  <Pencil />
+                </Button>
+                {isAdmin && (
+                  <Button size="icon-sm" variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(m)} aria-label="Delete">
+                    <Trash2 />
+                  </Button>
+                )}
+              </div>
+            ),
+          },
+        ]}
       />
 
-      {/* 🔍 SEARCH */}
-      <Input
-        placeholder="Search members..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-4"
-      />
-
-      <DataTable columns={columns} data={filteredMembers} />
-
-      {/* ADD / EDIT MODAL */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editing ? "Edit Member" : "Add New Member"}
-            </DialogTitle>
+            <DialogTitle>{editing ? "Edit member" : "Add new member"}</DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4 mt-4">
+          <form onSubmit={handleSubmit} className="mt-2 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                placeholder="First Name"
-                value={form.firstName}
-                onChange={(e) =>
-                  setForm({ ...form, firstName: e.target.value })
-                }
-              />
-              <Input
-                placeholder="Last Name"
-                value={form.lastName}
-                onChange={(e) =>
-                  setForm({ ...form, lastName: e.target.value })
-                }
-              />
+              <FormField label="First name">
+                <Input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+              </FormField>
+              <FormField label="Last name">
+                <Input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+              </FormField>
             </div>
-
-            <Input
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) =>
-                setForm({ ...form, phone: e.target.value })
-              }
-            />
-
-            <Input
-              type="email"
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) =>
-                setForm({ ...form, email: e.target.value })
-              }
-            />
-
-            <Button
-              onClick={editing ? handleUpdate : handleAdd}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading
-                ? "Processing..."
-                : editing
-                ? "Update Member"
-                : "Add Member"}
+            <FormField label="Email">
+              <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </FormField>
+            <FormField label="Phone / WhatsApp">
+              <Input type="tel" placeholder="+62 812..." value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            </FormField>
+            {editing && (
+              <FormField label="Account status" hint="Frozen or inactive members cannot check in.">
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Member["status"] })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Frozen">Frozen</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+            )}
+            <Button type="submit" disabled={save.isPending} className="h-10 w-full">
+              {save.isPending ? "Saving..." : editing ? "Save changes" : "Add member"}
             </Button>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
-      {/* 🗑️ DELETE CONFIRM MODAL */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Delete</DialogTitle>
-          </DialogHeader>
 
-          <p>Are you sure you want to delete this member?</p>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete member?"
+        description={`This permanently removes ${fullName(deleteTarget)} along with their subscriptions, payments and visit history.`}
+        loading={remove.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && remove.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })}
+      />
 
-          <div className="flex gap-2 mt-4">
-            <Button variant="secondary" onClick={() => setDeleteId(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <MemberProfile id={profileId} onClose={() => setProfileId(null)} />
     </div>
   );
 };

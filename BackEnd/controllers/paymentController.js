@@ -1,28 +1,28 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../lib/prisma");
 
-// GET
 exports.getPayments = async (req, res) => {
   const payments = await prisma.payment.findMany({
-    include: {
-      member: true,
-    },
+    orderBy: { date: "desc" },
+    include: { member: true },
   });
-
   res.json(payments);
 };
 
-// CREATE
 exports.createPayment = async (req, res) => {
-  const payment = await prisma.payment.create({
-    data: {
-      memberId: req.body.memberId,
-      amount: parseFloat(req.body.amount),
-      method: req.body.method,
-      status: req.body.status || "Completed",
-      date: new Date(req.body.date),
-    },
-  });
+  const payment = await prisma.payment.create({ data: req.body, include: { member: true } });
+  res.status(201).json(payment);
+};
 
+exports.updatePayment = async (req, res) => {
+  const payment = await prisma.payment.update({
+    where: { id: req.params.id },
+    data: req.body,
+    include: { member: true },
+  });
   res.json(payment);
+};
+
+exports.deletePayment = async (req, res) => {
+  await prisma.payment.delete({ where: { id: req.params.id } });
+  res.status(204).end();
 };

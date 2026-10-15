@@ -1,148 +1,117 @@
-import { useState, useEffect } from "react";
+import { useState, type FormEvent } from "react";
+import { Trash2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import DataTable from "@/components/DataTable";
-import { Badge } from "@/components/ui/badge";
+import StatusBadge from "@/components/StatusBadge";
+import FormField from "@/components/FormField";
+import MemberPicker from "@/components/MemberPicker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
-import { API_URL } from "@/api";
+import { useApiMutation, useList } from "@/hooks/useApi";
+import { formatDate, fullName, toDateInput } from "@/lib/format";
+import type { Attendance as AttendanceType, GymClass } from "@/types";
+
+const emptyForm = { memberId: "", classId: "", date: toDateInput(), status: "Present" };
 
 const Attendance = () => {
-  const [records, setRecords] = useState<any[]>([]);
-  const [members, setMembers] = useState<any[]>([]);
-  const [classes, setClasses] = useState<any[]>([]);
-
+  const { data: records = [], isLoading, error } = useList<AttendanceType>("/attendance");
+  const { data: classes = [] } = useList<GymClass>("/classes");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [classFilter, setClassFilter] = useState("all");
 
-  const [form, setForm] = useState({
-    memberId: "",
-    classId: "",
-    date: "",
-    status: "Present",
+  const create = useApiMutation((body: typeof form) => ({ path: "/attendance", method: "POST", body }), {
+    invalidate: ["/attendance", "/classes"],
+    success: "Attendance recorded",
+  });
+  const remove = useApiMutation((id: string) => ({ path: `/attendance/${id}`, method: "DELETE" }), {
+    invalidate: ["/attendance", "/classes"],
+    success: "Record removed",
   });
 
-  // ✅ FETCH
-  useEffect(() => {
-    fetch(`${API_URL}/attendance`)
-      .then(res => res.json())
-      .then(setRecords);
+  const filtered = classFilter === "all" ? records : records.filter((r) => r.classId === classFilter);
 
-    fetch(`${API_URL}/members`)
-      .then(res => res.json())
-      .then(setMembers);
-
-    fetch(`${API_URL}/classes`)
-      .then(res => res.json())
-      .then(setClasses);
-  }, []);
-
-  // ✅ CREATE
-  const handleAdd = async () => {
-    if (!form.memberId || !form.classId || !form.date) {
-      toast.error("Fill all fields");
-      return;
-    }
-
-    await fetch(`${API_URL}/attendance`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
-
-    // 🔥 re-fetch updated data
-    const updated = await fetch(`${API_URL}/attendance`)
-      .then(res => res.json());
-
-    setRecords(updated);
-
-    setDialogOpen(false);
-
-    toast.success("Attendance recorded 🎉");
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    // Keep class and date selected so staff can quickly register the next member.
+    create.mutate(form, { onSuccess: () => setForm({ ...form, memberId: "" }) });
   };
-
-  const columns = [
-    { key: "id", header: "ID" },
-    {
-      key: "member",
-      header: "Member",
-      render: (item: any) =>
-        `${item.member.firstName} ${item.member.lastName}`,
-    },
-    {
-      key: "class",
-      header: "Class",
-      render: (item: any) => item.class.className,
-    },
-    { key: "date", header: "Date" },
-    {
-      key: "status",
-      header: "Status",
-      render: (item: any) => (
-        <Badge>{item.status}</Badge>
-      ),
-    },
-  ];
 
   return (
     <div>
-      <PageHeader
-        title="Attendance"
-        description="Track class attendance"
-        actionLabel="Add Record"
-        onAction={() => setDialogOpen(true)}
-      />
+      <PageHeader title="Class attendance" description="Who joined which class" actionLabel="Record attendance" onAction={() => setDialogOpen(true)}>
+        <Select value={classFilter} onValueChange={setClassFilter}>
+          <SelectTrigger className="h-9 w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All classes</SelectItem>
+            {classes.map((c) => <SelectItem key={c.id} value={c.id}>{c.className}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </PageHeader>
 
-      <DataTable columns={columns} data={records} />
+      <DataTable
+        loading={isLoading}
+        error={error}
+        data={filtered}
+        emptyMessage="No attendance recorded yet"
+        columns={[
+          { key: "date", header: "Date", render: (r: AttendanceType) => formatDate(r.date) },
+          { key: "member", header: "Member", render: (r: AttendanceType) => <span className="font-medium">{fullName(r.member)}</span> },
+          { key: "class", header: "Class", render: (r: AttendanceType) => r.class.className },
+          { key: "status", header: "Status", render: (r: AttendanceType) => <StatusBadge status={r.status} /> },
+          {
+            key: "actions",
+            header: "",
+            className: "text-right",
+            render: (r: AttendanceType) => (
+              <Button size="icon-sm" variant="ghost" className="text-destructive" onClick={() => remove.mutate(r.id)} aria-label="Remove">
+                <Trash2 />
+              </Button>
+            ),
+          },
+        ]}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Attendance</DialogTitle>
+            <DialogTitle>Record attendance</DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4 mt-4">
-
-            {/* MEMBER */}
-            <Select onValueChange={(v) => setForm({ ...form, memberId: v })}>
-              <SelectTrigger><SelectValue placeholder="Select member" /></SelectTrigger>
-              <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.firstName} {m.lastName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* CLASS */}
-            <Select onValueChange={(v) => setForm({ ...form, classId: v })}>
-              <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-              <SelectContent>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.className}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Input type="date" onChange={(e) => setForm({ ...form, date: e.target.value })} />
-
-            <Select onValueChange={(v) => setForm({ ...form, status: v })}>
-              <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Present">Present</SelectItem>
-                <SelectItem value="Absent">Absent</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button onClick={handleAdd}>Save</Button>
-          </div>
+          <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+            <FormField label="Class">
+              <Select value={form.classId} onValueChange={(classId) => setForm({ ...form, classId })}>
+                <SelectTrigger><SelectValue placeholder="Choose a class" /></SelectTrigger>
+                <SelectContent>
+                  {classes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.className} · {c.schedule}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Member">
+              <MemberPicker value={form.memberId} onChange={(memberId) => setForm({ ...form, memberId })} />
+            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Date">
+                <Input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              </FormField>
+              <FormField label="Status">
+                <Select value={form.status} onValueChange={(status) => setForm({ ...form, status })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Present">Present</SelectItem>
+                    <SelectItem value="Late">Late</SelectItem>
+                    <SelectItem value="Absent">Absent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
+            <Button type="submit" className="h-10 w-full" disabled={create.isPending || !form.memberId || !form.classId}>
+              {create.isPending ? "Saving..." : "Save & add another"}
+            </Button>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

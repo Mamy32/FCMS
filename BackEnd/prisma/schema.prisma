@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,73 +6,112 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model Member {
-  id        String   @id @default(uuid())
-  firstName String
-  lastName  String
-  email     String
-  phone     String?
-  joinDate  DateTime @default(now())
-  status    String
-  attendances Attendance[]
-  subscriptions Subscription[]
-  payments Payment[]
 
+// Staff accounts that can sign in to the dashboard.
+// role: OWNER | ADMIN | STAFF — status: ACTIVE | PENDING | DISABLED
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("STAFF")
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
 }
-model Plan {
-  id             String  @id @default(uuid())
-  planName       String
-  price          String
-  durationMonths Int
 
+model Member {
+  id            String         @id @default(uuid())
+  firstName     String
+  lastName      String
+  email         String
+  phone         String?
+  joinDate      DateTime       @default(now())
+  status        String
+  attendances   Attendance[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  checkIns      CheckIn[]
+
+  @@index([email])
+}
+
+model Plan {
+  id             String         @id @default(uuid())
+  planName       String
+  // Price in Indonesian Rupiah (IDR), whole numbers
+  price          Int
+  durationMonths Int
   subscriptions  Subscription[]
 }
+
 model Subscription {
   id        String   @id @default(uuid())
-
   memberId  String
   planId    String
-
   startDate DateTime
   endDate   DateTime
   status    String
 
-  member    Member   @relation(fields: [memberId], references: [id])
-  plan      Plan     @relation(fields: [planId], references: [id])
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([memberId])
+  @@index([endDate])
 }
+
 model Trainer {
   id             String  @id @default(uuid())
   trainerName    String
   specialization String
+  phone          String?
   classCount     Int     @default(0)
+  classes        Class[]
 }
+
 model Class {
-  id          String @id @default(uuid())
+  id          String       @id @default(uuid())
   className   String
   schedule    String
   capacity    Int
+  trainerId   String?
+  trainer     Trainer?     @relation(fields: [trainerId], references: [id], onDelete: SetNull)
   attendances Attendance[]
 }
+
 model Attendance {
-  id        String   @id @default(uuid())
+  id       String   @id @default(uuid())
+  memberId String
+  classId  String
+  date     DateTime
+  status   String
 
-  memberId  String
-  classId   String
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  class  Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
 
-  date      DateTime
-  status    String
-
-  member    Member   @relation(fields: [memberId], references: [id])
-  class     Class    @relation(fields: [classId], references: [id])
+  @@index([date])
 }
+
 model Payment {
+  id       String   @id @default(uuid())
+  memberId String
+  amount   Float
+  method   String
+  status   String
+  date     DateTime
+  note     String?
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+}
+
+// A member walking through the front desk.
+model CheckIn {
   id        String   @id @default(uuid())
-
   memberId  String
-  amount    Float
-  method    String
-  status    String
-  date      DateTime
+  checkedAt DateTime @default(now())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  member    Member   @relation(fields: [memberId], references: [id])
+  @@index([checkedAt])
 }
